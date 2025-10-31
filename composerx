@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_DIR="${HOME}/.local/share/composerx"
+BIN_DIR="${HOME}/.local/bin"
+
+mkdir -p "$BASE_DIR" "$BIN_DIR"
+
+usage() {
+    echo "Usage:"
+    echo "  composerx install <package>   Install package globally in isolation"
+    echo "  composerx uninstall <package> Remove installed package"
+    echo "  composerx list                List installed packages"
+    echo "  composerx run <package> [args] Run a package binary"
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  install)
+    pkg="${2:-}"
+
+    [ -z "$pkg" ] && { echo "Missing package name."; usage; exit 1; }
+
+    name=$(basename "$pkg")
+    pkg_dir="$BASE_DIR/$name"
+
+    echo "Installing $pkg into $pkg_dir..."
+
+    rm -rf "$pkg_dir"
+    mkdir -p "$pkg_dir"
+    cd "$pkg_dir"
+
+    composer require "$pkg"
+
+    if [ -f "vendor/bin/$name" ]; then
+      bin_path="vendor/bin/$name"
+    else
+      bin_path=$(find vendor/bin -type f | head -n 1)
+    fi
+
+    if [ -n "$bin_path" ]; then
+      ln -sf "$pkg_dir/$bin_path" "$BIN_DIR/$name"
+      echo "Linked binary: $BIN_DIR/$name"
+    else
+      echo "No executable found in vendor/bin."
+    fi
+    ;;
+  uninstall)
+    pkg="${2:-}"
+
+    [ -z "$pkg" ] && { echo "Missing package name."; usage; exit 1; }
+
+    name=$(basename "$pkg")
+    rm -rf "$BASE_DIR/$name" "$BIN_DIR/$name"
+    echo "Removed $name"
+    ;;
+  list)
+    echo "Installed packages:"
+    ls "$BASE_DIR"
+    ;;
+  run)
+    pkg="${2:-}"
+
+    [ -z "$pkg" ] && { echo "Missing package name."; usage; exit 1; }
+
+    shift 2
+    "$BASE_DIR/$(basename "$pkg")/vendor/bin/"* "$@"
+    ;;
+  *)
+    usage
+    ;;
+esac
